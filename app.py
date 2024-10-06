@@ -4,9 +4,16 @@ import os
 
 app = Flask(__name__)
 
+@app.route('/')
+def home():
+    return jsonify({"message": "Welcome to the API!"})
+
 @app.route('/api/getdata', methods=['GET'])
 def get_data():
     access_token = request.args.get('accessToken')
+    if not access_token:
+        return jsonify({"error": "Access token is required"}), 400  # Bad Request if no token is provided
+    
     url = "https://app.addtowallet.co/api/card/get?deleted=false"
     
     headers = {
@@ -29,8 +36,11 @@ def get_data():
         response.raise_for_status()  # Raises HTTPError for 4xx and 5xx responses
         return jsonify(response.json())
     except requests.exceptions.HTTPError as err:
-        app.logger.error(f"Error: {err}, Response: {response.text}")  # Log the error
-        return jsonify({"error": str(err), "response": response.text}), 403
+        app.logger.error(f"HTTPError: {err}, Response: {response.text}")  # Log the error
+        return jsonify({"error": str(err), "response": response.text}), response.status_code
+    except Exception as e:
+        app.logger.error(f"Unexpected error: {e}")  # Log any other exceptions
+        return jsonify({"error": "An unexpected error occurred."}), 500  # Internal Server Error
 
 if __name__ == "__main__":
     app.run(debug=True)
