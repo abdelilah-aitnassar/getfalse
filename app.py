@@ -3,7 +3,6 @@ import requests
 
 app = Flask(__name__)
 
-# Define your API endpoint
 @app.route('/api/getdata', methods=['GET'])
 def get_data():
     access_token = request.args.get('accessToken')
@@ -11,32 +10,26 @@ def get_data():
     if not access_token:
         return jsonify({"error": "Access token is required"}), 400
 
-    # Make the request using the provided access token
     url = "https://app.addtowallet.co/api/card/get?deleted=false"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0',
         'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3',
-        'Accept-Encoding': 'gzip, deflate, br, zstd',
-        'accessToken': access_token,  # Use the access token provided in the request
-        'Connection': 'keep-alive',
-        'Referer': 'https://app.addtowallet.co/dashboard',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-origin',
+        'accessToken': access_token,
     }
 
     try:
         response = requests.get(url, headers=headers)
-        response.raise_for_status()  # Raise an error for bad responses (4xx or 5xx)
+        # Log the response status and content
+        print(f"Response Status: {response.status_code}")
+        print(f"Response Content: {response.text}")
         
-        # Parse response as JSON
+        response.raise_for_status()  # Raises HTTPError for bad responses
         data = response.json()
-        return jsonify(data)  # Return the data from the external API
+        return jsonify(data)
     except requests.exceptions.HTTPError as err:
         return jsonify({"error": str(err)}), response.status_code
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)  # Use the appropriate host and port
+    app.run(debug=True)
