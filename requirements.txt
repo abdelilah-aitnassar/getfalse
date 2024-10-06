@@ -36,7 +36,7 @@ execnet==2.1.1
 fake-useragent==1.5.1
 fasteners==0.19
 filelock==3.16.0
-Flask==3.0.3
+Flask
 frozenlist==1.4.1
 future==1.0.0
 gevent==24.2.1
