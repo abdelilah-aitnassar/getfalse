@@ -4,12 +4,6 @@ import time
 
 app = Flask(__name__)
 
-def load_proxies(file_path):
-    """Load the proxy list from a file."""
-    with open(file_path, 'r') as file:
-        proxies = [line.strip() for line in file.readlines() if line.strip()]
-    return proxies
-
 @app.route('/')
 def home():
     return jsonify({"message": "Welcome to the API!"})
@@ -17,8 +11,13 @@ def home():
 @app.route('/api/getdata', methods=['GET'])
 def get_data():
     access_token = request.args.get('accessToken')
+    proxy = request.args.get('proxy')  # Get the proxy from the URL parameters
+
     if not access_token:
         return jsonify({"error": "Access token is required"}), 400  # Bad Request if no token is provided
+
+    if not proxy:
+        return jsonify({"error": "Proxy is required"}), 400  # Bad Request if no proxy is provided
     
     url = "https://app.addtowallet.co/api/card/get?deleted=false"
     
@@ -27,7 +26,7 @@ def get_data():
         'Accept': 'application/json, text/plain, */*',
         'Accept-Language': 'fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3',
         'Accept-Encoding': 'gzip, deflate, br, zstd',
-        'accessToken': access_token,
+        'accessToken': access_token,  # Include the access token in the headers
         'Connection': 'keep-alive',
         'Referer': 'https://app.addtowallet.co/dashboard',
         'Sec-Fetch-Dest': 'empty',
@@ -37,34 +36,31 @@ def get_data():
         'TE': 'trailers'
     }
 
-    proxies = load_proxies('proxies.txt')  # Load proxies from the file
-    max_retries = 3  # Maximum number of retries for each proxy
+    # Define proxy settings
+    proxies = {
+        "http": proxy,
+        "https": proxy
+    }
 
-    for proxy in proxies:
-        for attempt in range(max_retries):
-            try:
-                # Define proxy settings
-                proxy_dict = {
-                    "http": proxy,
-                    "https": proxy
-                }
-
-                # Make the request through the proxy
-                response = requests.get(url, headers=headers, proxies=proxy_dict, timeout=10)
-                response.raise_for_status()  # Raises HTTPError for 4xx and 5xx responses
-                return jsonify(response.json())  # Return the JSON response from the API
-            except requests.exceptions.HTTPError as err:
-                app.logger.error(f"HTTPError: {err} for proxy: {proxy}")  # Log the error
-                break  # Exit the retry loop if HTTPError occurs
-            except requests.exceptions.ProxyError as err:
-                app.logger.error(f"ProxyError: {err} for proxy: {proxy}")  # Log the proxy error
-                if attempt < max_retries - 1:  # Wait before retrying
-                    time.sleep(10)  # Wait for 10 seconds before retrying
-            except Exception as e:
-                app.logger.error(f"Unexpected error: {e} for proxy: {proxy}")  # Log any other exceptions
-                break  # Exit the retry loop for unexpected errors
-
-    return jsonify({"error": "All proxies failed to connect."}), 502  # Bad Gateway
+    while True:
+        try:
+            # Make the request through the proxy
+            response = requests.get(url, headers=headers, proxies=proxies, timeout=10)
+            response.raise_for_status()  # Raises HTTPError for 4xx and 5xx responses
+            return jsonify(response.json())  # Return the JSON response from the API
+        except requests.exceptions.HTTPError as err:
+            app.logger.error(f"HTTPError: {err}, Response: {response.text}")  # Log the error
+            return jsonify({"error": str(err), "response": response.text}), response.status_code
+        except requests.exceptions.ProxyError as err:
+            app.logger.error(f"ProxyError: {err}")  # Log the proxy error
+            if "502 Bad Gateway" in str(err):
+                app.logger.info("Proxy failed with 502 Bad Gateway, waiting for 10 seconds and retrying...")
+                time.sleep(10)  # Wait for 10 seconds before retrying
+                continue  # Retry the request
+            return jsonify({"error": "Proxy connection failed", "details": str(err)}), 502  # Bad Gateway
+        except Exception as e:
+            app.logger.error(f"Unexpected error: {e}")  # Log any other exceptions
+            return jsonify({"error": "An unexpected error occurred."}), 500  # Internal Server Error
 
 if __name__ == "__main__":
     app.run(debug=True)
